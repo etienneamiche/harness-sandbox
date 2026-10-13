@@ -1,0 +1,9 @@
+# Configuration gitleaks du projet (gérée par le harness).
+# On garde toutes les règles par défaut, et on n'exclut que des fichiers sans secret possible.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Manifeste du harness : des empreintes SHA-256 de fichiers, pas des secrets"
+paths = ['''^\.harness/manifest\.json$''']

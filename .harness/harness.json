@@ -1,0 +1,127 @@
+{
+  "kind": "sandbox",
+  "profile": "standard",
+
+  "allowedAgents": {
+    "dev": "opus",
+    "architect": "opus",
+    "auditor": "opus",
+    "explorer": "haiku",
+    "linter": "haiku",
+    "git-ops": "haiku",
+    "reviewer": "haiku",
+    "cartographer": "haiku",
+    "impeccable-asset-producer": "inherit",
+    "impeccable-documenter": "inherit",
+    "impeccable-finish-reviewer": "inherit",
+    "impeccable-manual-edit-applier": "inherit"
+  },
+
+  "restrictedCommands": {
+    "git\\s+(commit|push|merge)\\b": ["git-ops"],
+    "git\\s+tag\\s+(-a|-s|-m|v?\\d)": ["git-ops"],
+    "gh\\s+pr\\s+(create|merge|edit|close|ready|reopen)\\b": ["git-ops"],
+    "gh\\s+pr\\s+(comment|review)\\b": ["git-ops", "auditor"],
+    "gh\\s+issue\\s+(create|edit|close|reopen|comment|delete|transfer)\\b": ["git-ops"],
+    "gh\\s+release\\s+(create|edit|delete|upload)\\b": ["git-ops"],
+    "gh\\s+repo\\s+(create|delete|edit|rename|archive)\\b": [],
+    "gh\\s+api\\b[^;&|]*\\s(-X|--method)\\s*(POST|PATCH|PUT|DELETE)\\b": []
+  },
+  "protectedBranches": ["main", "develop"],
+  "requireIssueRef": true,
+
+  "destructivePatterns": [
+    "\\brm\\s+-[a-zA-Z]*[rRf]",
+    "\\bRemove-Item\\b[^;&|]*-(Recurse|Force)",
+    "\\b(rmdir|rd|del)\\b[^;&|]*\\s(/s|-Recurse|-r)\\b",
+    "git\\s+reset\\s+--hard",
+    "git\\s+clean\\s+-[a-zA-Z]*[fdx]",
+    "git\\s+(checkout|restore)\\s+([^;&|]*\\s)?\\.(\\s|$)",
+    "git\\s+branch\\s+-D\\b",
+    "git\\s+push\\b[^;&|]*--delete",
+    "\\b(tofu|terraform)\\s+(destroy|apply\\b[^;&|]*-destroy)",
+    "\\bkubectl\\s+delete\\b",
+    "\\bhelm\\s+(uninstall|delete)\\b",
+    "\\b(DROP|TRUNCATE)\\s+(TABLE|DATABASE|SCHEMA)\\b",
+    "\\bdocker\\s+(system\\s+prune|volume\\s+(rm|prune))",
+    "\\b(Format-Volume|diskpart)\\b"
+  ],
+
+  "protectedPaths": [
+    "(^|/)\\.eslintrc(\\.[^/]*)?$",
+    "(^|/)eslint\\.config\\.[cm]?[jt]s$",
+    "(^|/)\\.prettierrc(\\.[^/]*)?$",
+    "(^|/)prettier\\.config\\.[cm]?[jt]s$",
+    "(^|/)biome\\.jsonc?$",
+    "(^|/)\\.?ruff\\.toml$",
+    "(^|/)\\.stylelintrc(\\.[^/]*)?$",
+    "(^|/)\\.markdownlint(-cli2)?\\.(jsonc?|ya?ml|cjs)$",
+    "(^|/)\\.(eslint|prettier|stylelint)ignore$",
+    "(^|/)\\.editorconfig$",
+    "(^|/)\\.globalconfig$",
+    "(^|/)[^/]*\\.ruleset$",
+    "(^|/)stylecop\\.json$",
+    "(^|/)\\.sops\\.yaml$",
+    "(^|/)\\.gitleaks\\.toml$",
+    "^\\.gitignore$",
+    "^\\.gitattributes$",
+    "^CLAUDE\\.md$",
+    "^\\.harness/",
+    "^\\.claude/(settings\\.json|agents/|skills/)",
+    "^\\.github/workflows/",
+    "^\\.copier-answers\\.[^/]*\\.yml$"
+  ],
+
+  "secretPaths": [
+    "(^|/)\\.env$",
+    "(^|/)\\.env\\.[^/]+$",
+    "\\.(pem|key|pfx|p12)$",
+    "(^|/)secrets\\.json$",
+    "(^|/)\\.git-credentials$",
+    "(^|/)\\.ssh/id_[^/]*$",
+    "/UserSecrets/",
+    "(^|/)sops/age/keys\\.txt$",
+    "\\.dec\\.ya?ml$",
+    "\\.decrypted\\."
+  ],
+  "secretPathsAllow": [
+    "\\.env\\.(example|sample|template|dist)$",
+    "\\.pub$"
+  ],
+  "secretCommands": [
+    "\\bsops\\s+(-d|--decrypt|decrypt)\\b",
+    "(?m)^\\s*(printenv|env|set)\\s*$",
+    "\\b(Get-ChildItem|gci|dir|ls)\\s+env:",
+    "\\$env:\\w*(TOKEN|KEY|SECRET|PASSWORD|PAT|CREDENTIAL)\\w*",
+    "\\$\\{?\\w*(TOKEN|SECRET|PASSWORD|API_KEY)\\w*\\}?",
+    "\\bgh\\s+auth\\s+token\\b",
+    "\\bgit\\s+credential\\s+fill\\b"
+  ],
+  "secretTokens": {
+    "jeton GitHub": "(gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,})",
+    "clé Anthropic": "sk-ant-[A-Za-z0-9_-]{20,}",
+    "clé OpenAI": "sk-(proj-)?[A-Za-z0-9]{32,}",
+    "clé AWS": "AKIA[0-9A-Z]{16}",
+    "clé age": "AGE-SECRET-KEY-1[0-9A-Z]{50,}",
+    "clé privée": "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+    "jeton Slack": "xox[abposr]-[A-Za-z0-9-]{10,}"
+  },
+
+  "docAllow": [
+    "^(README|AGENTS|CLAUDE|ARCHITECTURE|ROADMAP|CHANGELOG|STARTUP|CONTRIBUTING|IDEAS)\\.md$",
+    "(^|/)README\\.md$",
+    "^docs/",
+    "^ideas/",
+    "^_template\\.md$",
+    "^\\.claude/",
+    "^\\.harness/",
+    "^\\.github/"
+  ],
+  "debugPatterns": [
+    "console\\.(log|debug)\\(",
+    "Console\\.Write(Line)?\\(",
+    "Debug\\.WriteLine\\(",
+    "(^|[^.\\w])print\\(",
+    "\\bdebugger\\b"
+  ]
+}

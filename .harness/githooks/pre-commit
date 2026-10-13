@@ -1,0 +1,3 @@
+#!/bin/sh
+# Hook Git du harness : délègue à PowerShell (cadrage §17, couche 4).
+exec pwsh -NoProfile -NonInteractive -File "$(git rev-parse --show-toplevel)/.harness/githooks/pre-commit.ps1"

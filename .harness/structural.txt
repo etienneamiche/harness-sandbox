@@ -1,0 +1,5 @@
+# Blocs structurels : fichiers venus d'un template (expressions régulières sur le chemin relatif).
+# Les modules du harness et les templates y ajoutent leurs motifs.
+# Une modification de l'un de ces fichiers est signalée par structural-watch (→ /upstream).
+^scripts/(launch|test|lint|build)\.ps1$
+^deploy/Chart\.yaml$

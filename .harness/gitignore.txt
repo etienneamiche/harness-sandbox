@@ -1,0 +1,17 @@
+# Secrets en clair : jamais dans Git (cadrage §17, couche 6)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.pfx
+*.p12
+secrets.json
+*.dec.yaml
+*.dec.yml
+*.decrypted.*
+
+# Outils
+.codegraph/

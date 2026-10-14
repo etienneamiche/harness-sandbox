@@ -6,14 +6,14 @@ function Invoke-Retry {
         [ValidateRange(1, 10)] [int] $MaxAttempts = 3,
         [ValidateRange(0, 60000)] [int] $DelayMs = 200
     )
-    for ($attempt = 1; $attempt -le $MaxAttempts + 1; $attempt++) {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         try {
             return & $Action
         }
         catch {
             if ($attempt -eq $MaxAttempts + 1) { throw }
             Write-Verbose "Invoke-Retry: attempt $attempt failed ($($_.Exception.Message)), retrying."
-            Start-Sleep -Milliseconds ($DelayMs * [math]::Pow(2, $attempt - 1))
+            Start-Sleep -Milliseconds ([math]::Min($DelayMs * [math]::Pow(2, $attempt - 1), 30000))
         }
     }
 }

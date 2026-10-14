@@ -14,4 +14,9 @@ Describe 'Invoke-Retry' {
         $result | Should -Be 'ok'
         $script:calls | Should -Be 3
     }
+    It 'tries the action at most MaxAttempts times' {
+        $script:calls = 0
+        try { Invoke-Retry -MaxAttempts 3 -DelayMs 0 -Action { $script:calls++; throw 'down' } } catch { }
+        $script:calls | Should -Be 3
+    }
 }

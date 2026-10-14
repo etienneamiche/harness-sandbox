@@ -8,7 +8,7 @@ public sealed class CustomerDal(NpgsqlDataSource db)
 {
     public async Task<Customer?> FindByEmailAsync(string email, CancellationToken ct)
     {
-        await using var cmd = db.CreateCommand("SELECT id, name, email FROM customers WHERE email = $1");
+        await using var cmd = db.CreateCommand("SELECT id, name, email_address FROM customers WHERE email_address = $1");
         cmd.Parameters.AddWithValue(email);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct)
@@ -18,7 +18,7 @@ public sealed class CustomerDal(NpgsqlDataSource db)
 
     public async Task<IReadOnlyList<Customer>> ListAsync(int offset, int limit, CancellationToken ct)
     {
-        await using var cmd = db.CreateCommand("SELECT id, name, email FROM customers ORDER BY id OFFSET $1 LIMIT $2");
+        await using var cmd = db.CreateCommand("SELECT id, name, email_address FROM customers ORDER BY id OFFSET $1 LIMIT $2");
         cmd.Parameters.AddWithValue(offset);
         cmd.Parameters.AddWithValue(limit);
         await using var reader = await cmd.ExecuteReaderAsync(ct);

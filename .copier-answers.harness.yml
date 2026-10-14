@@ -1,7 +1,11 @@
 # Généré par Copier : ne pas modifier à la main. Mise à jour : copier update --trust
-_commit: v0.1.1
+_commit: v0.2.0
 _src_path: gh:etienneamiche/harness
 description: 'Dépôt jetable pour tester le harness : on y casse des choses volontairement.'
 hook_profile: standard
 kind: sandbox
+modules:
+- react
+- dotnet
+- game
 project_name: .

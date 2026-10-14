@@ -1,0 +1,20 @@
+{
+  "name": "react",
+  "description": "Front React : Vite, TypeScript, Biome",
+  "stopChecks": [
+    {
+      "name": "biome",
+      "files": "^frontend/.*\\.(ts|tsx|js|jsx|json|css)$",
+      "command": "pnpm --dir frontend exec biome check --write --error-on-warnings --no-errors-on-unmatched"
+    },
+    {
+      "name": "typescript",
+      "files": "^frontend/.*\\.tsx?$",
+      "command": "pnpm --dir frontend exec tsc -b"
+    }
+  ],
+  "structural": [
+    "^frontend/(vite\\.config\\.ts|tsconfig[^/]*\\.json|biome\\.json|orval\\.config\\.ts|package\\.json)$",
+    "^frontend/src/((app|realtime)/|config\\.ts$)"
+  ]
+}

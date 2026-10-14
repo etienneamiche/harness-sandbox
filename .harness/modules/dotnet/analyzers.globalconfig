@@ -1,0 +1,36 @@
+# Configuration d'analyse .NET commune (module dotnet du harness).
+# Référencée par backend/Directory.Build.props : <GlobalAnalyzerConfigFiles Include="..." />
+# Les règles IDExxxx ne sont évaluées au build qu'avec <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>,
+# et IDE0005 exige en plus <GenerateDocumentationFile>true</GenerateDocumentationFile> (avec NoWarn CS1591).
+is_global = true
+
+# Style imposé : vérifié au build (avertissements = erreurs)
+dotnet_diagnostic.IDE0005.severity = warning   # using inutiles
+dotnet_diagnostic.IDE0161.severity = warning   # espaces de noms déclarés sur une ligne
+dotnet_diagnostic.IDE0290.severity = warning   # constructeurs primaires
+dotnet_diagnostic.IDE0300.severity = suggestion
+dotnet_diagnostic.IDE0040.severity = warning   # modificateurs d'accès explicites
+dotnet_diagnostic.IDE0044.severity = warning   # champs readonly
+dotnet_diagnostic.IDE0055.severity = warning   # mise en forme
+
+# Qualité
+dotnet_diagnostic.CA1852.severity = warning    # types internal non dérivés : sealed (les types publics ne sont pas couverts)
+dotnet_diagnostic.CA2007.severity = none       # ConfigureAwait inutile dans ASP.NET Core
+dotnet_diagnostic.CA2016.severity = warning    # transmettre le CancellationToken
+dotnet_diagnostic.CA1848.severity = suggestion # LoggerMessage : conseillé, pas imposé
+dotnet_diagnostic.CA1062.severity = none       # couvert par les types nullables
+
+# Nullabilité : toute alerte est une erreur
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8603.severity = error
+dotnet_diagnostic.CS8604.severity = error
+dotnet_diagnostic.CS8618.severity = error
+dotnet_diagnostic.CS8625.severity = error
+
+# Préférences de style C#
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_prefer_primary_constructors = true:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_prefer_braces = true:warning
+dotnet_style_readonly_field = true:warning

@@ -47,7 +47,9 @@
   },
   "claudeMdExcludes": ["**/services/CLAUDE.md", "**/services/AGENTS.md"],
   "enabledPlugins": {
-    "ponytail@ponytail": true
+    "ponytail@ponytail": true,
+    "csharp-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "ponytail": { "source": { "source": "github", "repo": "DietrichGebert/ponytail" } }

@@ -136,8 +136,18 @@ if ($hasIndex) { Add-Result 'codegraph' 'OK' 'index présent' } else { Add-Resul
 # --- Autotests --------------------------------------------------------------------
 if ($Deep) {
     $pester = Invoke-Pester -Path (Join-Path $root '.harness' 'tests') -PassThru -Output None
-    if ($pester.FailedCount -eq 0) { Add-Result 'autotests' 'OK' "$($pester.PassedCount) tests verts" }
-    else { Add-Result 'autotests' 'FAIL' "$($pester.FailedCount) en échec : $(($pester.Failed | Select-Object -First 3 | ForEach-Object ExpandedName) -join ' ; ')" }
+    # Un fichier ou un bloc de tests en erreur (syntaxe, BeforeAll) fait disparaître des tests
+    # sans qu'aucun ne soit compté en échec : il faut le traiter comme un échec.
+    # (Pester marque aussi le fichier en échec quand un test échoue : on cite d'abord les tests.)
+    $brokenContainers = @($pester.Containers | Where-Object { $_.Result -eq 'Failed' -and $_.ErrorRecord })
+    if ($pester.FailedCount -gt 0) {
+        Add-Result 'autotests' 'FAIL' "$($pester.FailedCount) en échec : $(($pester.Failed | Select-Object -First 3 | ForEach-Object ExpandedName) -join ' ; ')"
+    }
+    elseif ($brokenContainers -or $pester.FailedBlocksCount -gt 0) {
+        $why = @($brokenContainers | ForEach-Object { "$(Split-Path $_.Item -Leaf) : $($_.ErrorRecord | Select-Object -First 1)" }) + @($pester.FailedBlocks | ForEach-Object { "bloc $($_.ExpandedPath)" })
+        Add-Result 'autotests' 'FAIL' "tests non exécutés : $($why -join ' ; ')"
+    }
+    else { Add-Result 'autotests' 'OK' "$($pester.PassedCount) tests verts" }
 }
 
 # --- Bilan ------------------------------------------------------------------------

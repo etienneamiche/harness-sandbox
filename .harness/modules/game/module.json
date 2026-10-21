@@ -1,0 +1,9 @@
+{
+  "name": "game",
+  "description": "Jeu multijoueur : serveur qui fait autorité, règles pures, salles, sauvegardes",
+  "stopChecks": [],
+  "structural": [
+    "^backend/src/[^/]+\\.Services/Rooms/",
+    "^frontend/src/realtime/"
+  ]
+}

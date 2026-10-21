@@ -1,0 +1,27 @@
+{
+  "name": "dotnet",
+  "description": "Backend .NET : Controller → Service → Dal / Clients, database-first + DbUp",
+  "stopChecks": [
+    {
+      "name": "dotnet format",
+      "files": "^backend/.*\\.(cs|csproj|props|slnx)$",
+      "command": "dotnet format backend --verbosity quiet"
+    },
+    {
+      "name": "dotnet build",
+      "files": "^backend/.*\\.(cs|csproj|props|slnx)$",
+      "command": "dotnet build backend --no-restore --nologo --verbosity quiet"
+    },
+    {
+      "name": "migrations : numéros uniques",
+      "files": "^backend/db/migrations/.*\\.sql$",
+      "command": "$d = Get-ChildItem backend/db/migrations -Filter *.sql | Group-Object { $_.Name.Split('.')[0] } | Where-Object Count -gt 1; if ($d) { $d | ForEach-Object { \"numéro en double : $($_.Name)\" }; exit 1 }"
+    }
+  ],
+  "structural": [
+    "^backend/(global\\.json|Directory\\.Build\\.props|Directory\\.Packages\\.props)$",
+    "^backend/src/[^/]+\\.Api/Program\\.cs$",
+    "^backend/src/[^/]+\\.Migrations/",
+    "^scripts/db\\.ps1$"
+  ]
+}

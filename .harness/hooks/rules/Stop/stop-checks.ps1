@@ -10,7 +10,7 @@
         param($ctx)
         if (Get-Value $ctx.Input 'stop_hook_active' $false) { return }
 
-        $changed = @(git -C $ctx.ProjectDir status --porcelain 2>$null | ForEach-Object { $_.Substring(3) -replace '^.* -> ', '' })
+        $changed = @(git -C $ctx.ProjectDir status --porcelain --untracked-files=all 2>$null | ForEach-Object { $_.Substring(3) -replace '^.* -> ', '' })
         if (-not $changed) { return }
         $problems = [System.Collections.Generic.List[string]]::new()
 

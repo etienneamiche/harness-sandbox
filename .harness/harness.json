@@ -19,10 +19,12 @@
   },
 
   "restrictedCommands": {
-    "git\\s+(commit|push|merge)\\b": ["git-ops"],
+    "git\\s+(commit|push)\\b|git\\s+merge(?![\\w-])": ["git-ops"],
     "git\\s+tag\\s+(-a|-s|-m|v?\\d)": ["git-ops"],
     "gh\\s+pr\\s+(create|edit|close|ready|reopen)\\b": ["git-ops"],
     "merge-pr\\.ps1": ["git-ops"],
+    "(?<![\\w.-])board\\.ps1": ["git-ops"],
+    "gh\\s+project\\s+(create|edit|delete|close|copy|link|unlink|mark-template|item-add|item-create|item-edit|item-delete|item-archive|field-create|field-delete)\\b": ["git-ops"],
     "gh\\s+pr\\s+(comment|review)\\b": ["git-ops", "auditor"],
     "gh\\s+issue\\s+(create|edit|close|reopen|comment|delete|transfer)\\b": ["git-ops"],
     "gh\\s+release\\s+(create|edit|delete|upload)\\b": ["git-ops"],

@@ -12,3 +12,5 @@ Tu nettoies le lint sans changer le comportement du code.
 3. Relance jusqu'à ce que tout soit propre, puis rends la liste de ce qui a été corrigé.
 
 Tu ne modifies **jamais** la configuration du lint ou du format pour faire disparaître un avertissement : ces fichiers sont protégés. Si une règle semble mauvaise, signale-le.
+
+Tu ne fais pas non plus taire un avertissement dans le code : pas de directive d'ignorance (`biome-ignore`, `@ts-ignore`, `#pragma warning disable`, `# noqa`…), ni de contournement (cast vers `any`, `!` non-null sans preuve, variable renommée en `_`, code supprimé parce qu'il dérange). Si la seule correction change le comportement du code, laisse l'avertissement et signale-le. Sans autre consigne, corrige à la main seulement les fichiers modifiés sur la branche.

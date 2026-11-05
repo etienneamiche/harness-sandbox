@@ -1,4 +1,5 @@
 #Requires -Version 7.4
+
 <#
 .SYNOPSIS
     Finalise l'installation ou la mise à jour du harness dans un projet.
@@ -10,9 +11,17 @@
       2. bloc géré dans .gitignore ;
       3. plugins Claude Code du projet (`claude plugin install --scope project`) ;
       4. manifeste des fichiers du harness (détection des modifications manuelles).
+
+.PARAMETER SkipPlugins
+    N'installe pas les plugins (aussi par la variable HARNESS_SKIP_PLUGINS).
+
+.PARAMETER SkipManifest
+    N'écrit pas le manifeste. Pour une réparation (doctor -Fix) : réécrire le manifeste
+    signerait l'état présent, et une modification manuelle des fichiers du harness
+    deviendrait invisible au doctor.
 #>
 [CmdletBinding()]
-param([switch] $SkipPlugins)
+param([switch] $SkipPlugins, [switch] $SkipManifest)
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -59,5 +68,7 @@ if (-not $SkipPlugins -and (Get-Command claude -ErrorAction SilentlyContinue)) {
 }
 
 # 4. Manifeste : empreinte de chaque fichier géré par le harness.
-& (Join-Path $PSScriptRoot 'write-manifest.ps1')
-Step 'manifeste écrit'
+if (-not $SkipManifest) {
+    & (Join-Path $PSScriptRoot 'write-manifest.ps1')
+    Step 'manifeste écrit'
+}

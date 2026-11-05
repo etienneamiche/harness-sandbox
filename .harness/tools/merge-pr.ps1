@@ -1,4 +1,5 @@
 #Requires -Version 7.4
+
 <#
 .SYNOPSIS
     Fusionne une PR, seulement si elle a une revue auditor approuvée sur son dernier commit.

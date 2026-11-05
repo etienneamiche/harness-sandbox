@@ -1,6 +1,20 @@
 #Requires -Version 7.4
-# Écrit .harness/manifest.json : l'empreinte SHA-256 de chaque fichier géré par le harness.
-# Le doctor la compare à l'état réel pour détecter une modification manuelle.
+
+<#
+.SYNOPSIS
+    Écrit .harness/manifest.json : l'empreinte SHA-256 de chaque fichier géré par le harness.
+
+.DESCRIPTION
+    Le doctor compare ce manifeste à l'état réel pour détecter une modification manuelle.
+    Lancé par post-install.ps1 après `copier copy` ou `copier update`. Les fins de ligne sont
+    normalisées : un checkout CRLF ou LF ne compte pas comme une modification.
+
+.PARAMETER Print
+    Rend le manifeste au lieu de l'écrire.
+
+.EXAMPLE
+    pwsh -NoProfile -File .harness/tools/write-manifest.ps1
+#>
 param([switch] $Print)
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path

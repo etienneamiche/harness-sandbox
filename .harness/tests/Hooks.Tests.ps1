@@ -8,8 +8,10 @@ BeforeDiscovery {
     # Certains tests dépendent du type de dépôt (gitflow ou non) : on lit sa config.
     $cfg = Get-Content (Join-Path $PSScriptRoot '..' 'harness.json') -Raw | ConvertFrom-Json
     $Gitflow = [bool] $cfg.requireIssueRef
+    $IsRoot = $cfg.kind -eq 'root'
     $HasReact = Test-Path (Join-Path $PSScriptRoot '..' 'modules' 'react')
     $HasDotnet = Test-Path (Join-Path $PSScriptRoot '..' 'modules' 'dotnet')
+    $Tools = @(Get-ChildItem (Join-Path $PSScriptRoot '..' 'tools') -File -Filter '*.ps1' | ForEach-Object { @{ name = $_.Name; path = $_.FullName } })
 }
 
 BeforeAll {
@@ -49,6 +51,7 @@ BeforeAll {
         $d
     }
     function Bash([string] $Command, [string] $Agent = '') { Tool 'Bash' @{ command = $Command } $Agent }
+    function PowerShell([string] $Command, [string] $Agent = '') { Tool 'PowerShell' @{ command = $Command } $Agent }
 
     # Faux secrets construits à l'exécution : rien de détectable n'est écrit dans le dépôt.
     function New-FakeToken([string] $Prefix, [int] $Length) {
@@ -100,6 +103,12 @@ Describe 'git-guard' {
     ) { (Invoke-Hook -Data (Bash $cmd 'git-ops')).Decision | Should -Be 'deny' }
     It 'refuse le push direct sur main' -Skip:(-not $Gitflow) { (Invoke-Hook -Data (Bash 'git push origin main' 'git-ops')).Decision | Should -Be 'deny' }
     It 'refuse le push direct sur develop' -Skip:(-not $Gitflow) { (Invoke-Hook -Data (Bash 'git push origin HEAD:develop' 'git-ops')).Decision | Should -Be 'deny' }
+    It 'refuse git merge hors git-ops' { (Invoke-Hook -Data (Bash 'git merge origin/develop')).Decision | Should -Be 'deny' }
+    It 'laisse les lectures git merge-base et merge-tree à la session (<cmd>)' -ForEach @(
+        @{ cmd = 'git merge-base --is-ancestor v0.1.0 origin/develop' }
+        @{ cmd = 'git merge-tree --write-tree main develop' }
+    ) { (Invoke-Hook -Data (Bash $cmd)).Decision | Should -Be 'allow' }
+    It 'réserve aussi git commit-tree à git-ops' { (Invoke-Hook -Data (Bash 'git commit-tree HEAD^{tree} -p HEAD -m "fix: x (#1)"')).Decision | Should -Be 'deny' }
     It 'accepte le push d''une branche de feature' { (Invoke-Hook -Data (Bash 'git push -u origin feature/12-export' 'git-ops')).Decision | Should -Be 'allow' }
     It 'refuse gh pr create hors git-ops' { (Invoke-Hook -Data (Bash 'gh pr create --fill')).Decision | Should -Be 'deny' }
     It 'accepte gh pr create par git-ops' { (Invoke-Hook -Data (Bash 'gh pr create --fill' 'git-ops')).Decision | Should -Be 'allow' }
@@ -122,6 +131,110 @@ Describe 'git-guard : fusion uniquement par merge-pr.ps1' {
     }
     It 'ne confond pas un texte « pr merge » dans un commentaire avec une fusion' {
         (Invoke-Hook -Data (Bash 'gh issue comment 3 --body "voir la pr merge de demain"' 'git-ops')).Decision | Should -Be 'allow'
+    }
+}
+
+Describe 'board.ps1 : carte d''une issue sur le Project' {
+    BeforeAll { $script:BoardScript = Join-Path $script:Root '.harness' 'tools' 'board.ps1' }
+    It 'réserve board.ps1 à git-ops' {
+        (Invoke-Hook -Data (Bash "pwsh -NoProfile -File .harness/tools/board.ps1 -Issue 7 -Status 'En revue'" 'dev')).Decision | Should -Be 'deny'
+        (Invoke-Hook -Data (Bash "pwsh -NoProfile -File .harness/tools/board.ps1 -Issue 7 -Status 'En revue'")).Decision | Should -Be 'deny'
+    }
+    It 'laisse git-ops lancer board.ps1' {
+        (Invoke-Hook -Data (Bash "pwsh -NoProfile -File .harness/tools/board.ps1 -Issue 7 -Status 'En revue'" 'git-ops')).Decision | Should -Be 'allow'
+    }
+    It 'refuse un statut hors des cinq colonnes, avant tout appel à gh (<status>)' -ForEach @(
+        @{ status = 'Done' }, @{ status = 'En attente' }
+    ) {
+        $out = pwsh -NoProfile -NonInteractive -File $script:BoardScript -Issue 7 -Status $status -Repo 'o/r' 2>&1 | Out-String
+        $LASTEXITCODE | Should -Not -Be 0
+        $out | Should -Match 'Status'
+    }
+    It 'refuse un numéro d''issue invalide et un -Repo mal formé (<param>)' -ForEach @(
+        @{ param = 'Issue'; issue = 0; repo = 'o/r' }, @{ param = 'Repo'; issue = 7; repo = 'pas un dépôt' }
+    ) {
+        $out = pwsh -NoProfile -NonInteractive -File $script:BoardScript -Issue $issue -Status 'Fait' -Repo $repo 2>&1 | Out-String
+        $LASTEXITCODE | Should -Not -Be 0
+        $out | Should -Match $param
+    }
+    It 'ne confond pas un autre script avec board.ps1 (<cmd>)' -ForEach @(
+        @{ cmd = 'pwsh -NoProfile -File scripts/dashboard.ps1' }, @{ cmd = 'pwsh -File tools/leaderboard.ps1 -Top 5' }, @{ cmd = './scripts/storyboard.ps1' }
+    ) { (Invoke-Hook -Data (Bash $cmd 'dev')).Decision | Should -Be 'allow' }
+    It 'réserve les écritures gh project à git-ops (<cmd>)' -ForEach @(
+        @{ cmd = 'gh project item-edit --id X --project-id Y --field-id Z --single-select-option-id W' },
+        @{ cmd = 'gh project item-add 1 --owner o --url https://github.com/o/r/issues/7' }
+    ) {
+        (Invoke-Hook -Data (Bash $cmd 'dev')).Decision | Should -Be 'deny'
+        (Invoke-Hook -Data (Bash $cmd 'git-ops')).Decision | Should -Be 'allow'
+    }
+    It 'laisse lire le Project (<cmd>)' -ForEach @(
+        @{ cmd = 'gh project list --owner o' }, @{ cmd = 'gh project item-list 1 --owner o --format json' }
+    ) { (Invoke-Hook -Data (Bash $cmd 'dev')).Decision | Should -Be 'allow' }
+}
+
+Describe 'git-guard : le texte d''un message n''est pas une option' {
+    It 'accepte un message qui parle d''options (<label>)' -ForEach @(
+        @{ label = '-m'; cmd = 'git commit -m "feat(scripts): add -Days and -WhatIf to clean-exports (#5)"' }
+        @{ label = 'heredoc'; cmd = "git commit -F - <<'EOF'`nfeat(scripts): clean up old exports (#5)`n`nDeletes the CSV older than -Days days; -WhatIf lists them.`nNever use --no-verify or git add -A.`nEOF" }
+        @{ label = 'here-string'; cmd = "git commit -m @'`nfeat(scripts): clean up old exports (#5)`n`n-Path and -All are optional.`n'@" }
+        @{ label = 'apostrophes'; cmd = "git commit -m 'fix(api): handle -a in names (#3)'" }
+    ) { (Invoke-Hook -Data (Bash $cmd 'git-ops')).Decision | Should -Be 'allow' }
+    It 'refuse toujours git commit -a hors du texte cité (<cmd>)' -ForEach @(
+        @{ cmd = 'git commit -a -m "feat: x (#1)"' }, @{ cmd = 'git commit -am "feat: x (#1)"' },
+        @{ cmd = 'git commit --all -m "feat: x (#1)"' }, @{ cmd = 'git commit -m "feat: x (#1)" -a' }
+    ) { (Invoke-Hook -Data (Bash $cmd 'git-ops')).Reason | Should -Match 'commit -a' }
+    It 'refuse toujours --no-verify hors du texte cité' {
+        (Invoke-Hook -Data (Bash 'git commit --no-verify -m "feat: x (#1)"' 'git-ops')).Reason | Should -Match 'no-verify'
+    }
+    It 'voit une option seule entre guillemets (<cmd>)' -ForEach @(
+        @{ cmd = 'git commit "--no-verify" -m "feat: x (#1)"' }, @{ cmd = "git commit '-a' -m 'feat: x (#1)'" }, @{ cmd = 'git add "."' }
+    ) { (Invoke-Hook -Data (Bash $cmd 'git-ops')).Decision | Should -Be 'deny' }
+    It 'accepte -a comme valeur de -m, et dans le corps d''un heredoc' {
+        (Invoke-Hook -Data (Bash 'git commit -m "-a" -m "feat: x (#1)"' 'git-ops')).Decision | Should -Be 'allow'
+        (Invoke-Hook -Data (Bash "git commit -F - <<'EOF'`nfeat: x (#1)`n`nThe -a flag and git add . are refused.`nEOF" 'git-ops')).Decision | Should -Be 'allow'
+    }
+    It 'ne masque pas ce que le shell exécute (<label>)' -ForEach @(
+        @{ label = 'substitution dans des guillemets'; cmd = 'echo "$(git push --force origin feature/x)"' }
+        @{ label = 'fin de la ligne d''un heredoc'; cmd = "git commit -F - <<EOF --no-verify`nfeat: x (#1)`nEOF" }
+        @{ label = 'fin de ligne d''un heredoc cité'; cmd = "git commit -F - <<'EOF' --no-verify`nfeat: x (#1)`nEOF" }
+        @{ label = 'heredoc dans une chaîne'; cmd = "echo `"<<'EOF'`"`ngit worktree add ../x`nEOF" }
+        @{ label = 'heredoc dans un commentaire'; cmd = "echo hi # <<'EOF'`ngit push --force origin x`nEOF" }
+        @{ label = 'apostrophe échappée (bash)'; cmd = "echo \' ; git commit -a -m x ; echo \'" }
+        @{ label = 'apostrophe échappée (pwsh)'; cmd = "echo `` `' ; git commit -a -m x ; echo `` `'" }
+        @{ label = '\" dans une chaîne pwsh'; cmd = 'git commit -m "x\" --no-verify "y"' }
+        @{ label = 'apostrophe dans un commentaire'; cmd = "echo a # it's`ngit worktree add ../x # '" }
+        @{ label = 'apostrophe dans une chaîne non littérale'; cmd = "echo `"`$x it's`" ; git push --force origin x ; echo 'y'" }
+        @{ label = 'guillemet typographique (pwsh)'; cmd = "echo 'a$([char]0x2019) ; git push --force origin x ; $([char]0x2019)b'" }
+        @{ label = 'commentaire bloc pwsh'; cmd = "<# ' #> git push --force origin x <# ' #>" }
+        @{ label = 'here-string qui contient une apostrophe'; cmd = "echo @'`nit's`n'@ ; git worktree add ../x ; echo '`n'@" }
+        @{ label = 'chaîne pwsh sur plusieurs lignes'; cmd = "echo `"`$x`n`" ; git push --force origin x ; `"z`"" }
+        @{ label = 'substitution dans un heredoc non cité'; cmd = "cat <<EOF`n'`$(git push --force origin x)'`nEOF" }
+        @{ label = 'stop-parsing pwsh'; cmd = "git --% commit -a -m 'x'" }
+        @{ label = 'stop-parsing pwsh, option dans une apostrophe'; cmd = "git --% commit -m 'x --no-verify'" }
+        @{ label = 'chaîne bash $''…'' avec \'''; cmd = "git commit -m `$'x\'' --no-verify -m ''" }
+        @{ label = 'délimiteur de heredoc à moitié cité'; cmd = "cat <<'E'OF`nx`nEOF`ngit push --force origin main`nE" }
+        @{ label = 'option entre guillemets avec sa valeur'; cmd = "git push '--force-with-lease=main' origin main" }
+    ) { (Invoke-Hook -Data (Bash $cmd 'dev')).Decision | Should -Be 'deny' }
+    It 'voit la sous-commande git derrière --% de pwsh, pour les opérations réservées' {
+        (Invoke-Hook -Data (Bash "git --% commit -m 'feat: x (#1)'" 'dev')).Decision | Should -Be 'deny'
+    }
+    It 'accepte un chemin Windows entre guillemets doubles (<label>)' -ForEach @(
+        @{ label = 'git -C'; cmd = 'git -C "C:\repo\app" commit -m "feat(scripts): add -Days (#16)"' }
+        @{ label = 'cd'; cmd = 'cd "C:\repo\app" && git commit -m "feat(scripts): add -Days (#16)"' }
+    ) {
+        (Invoke-Hook -Data (Bash $cmd 'git-ops')).Decision | Should -Be 'allow'
+        (Invoke-Hook -Data (PowerShell $cmd 'git-ops')).Decision | Should -Be 'allow'
+    }
+    It 'refuse un \ qui échappe, dans une chaîne' {
+        (Invoke-Hook -Data (Bash 'git commit -m "x\" -a "y"' 'git-ops')).Decision | Should -Be 'deny'
+    }
+    It 'refuse une option derrière --%, avec l''outil PowerShell (<cmd>)' -ForEach @(
+        @{ cmd = "git --% commit -m 'feat: x (#16) -a'" }, @{ cmd = 'git --% commit "-a" -m x' },
+        @{ cmd = 'git --% push origin x "--force"' }, @{ cmd = "git -C . --% commit --no-verify -m 'x'" }
+    ) { (Invoke-Hook -Data (PowerShell $cmd 'git-ops')).Decision | Should -Be 'deny' }
+    It 'garde un chemin Windows sans masquer la suite' {
+        (Invoke-Hook -Data (Bash 'git -C C:\repo\app commit -m "feat(scripts): add -Days (#5)"' 'git-ops')).Decision | Should -Be 'allow'
+        (Invoke-Hook -Data (Bash 'git -C C:\repo\app commit -a -m "feat: x (#5)"' 'git-ops')).Decision | Should -Be 'deny'
     }
 }
 
@@ -301,6 +414,12 @@ Describe 'règles d''information' {
     It 'doc-sprawl ignore docs/ et README' -ForEach @(@{ path = 'docs/guide.md' }, @{ path = 'README.md' }) {
         (Invoke-Hook -EventName 'PostToolUse' -Data (Tool 'Write' @{ file_path = (Join-Path $script:Root $path); content = 'x' })).Decision | Should -Be 'allow'
     }
+    It 'doc-sprawl ignore à la racine les fichiers de project-ideas (<path>)' -Skip:(-not $IsRoot) -ForEach @(@{ path = 'project-ideas/IDEAS.md' }, @{ path = 'project-ideas/ideas/0007-carnet.md' }) {
+        (Invoke-Hook -EventName 'PostToolUse' -Data (Tool 'Write' @{ file_path = (Join-Path $script:Root $path); content = 'x' })).Decision | Should -Be 'allow'
+    }
+    It 'doc-sprawl signale toujours un autre Markdown de project-ideas' -Skip:(-not $IsRoot) {
+        (Invoke-Hook -EventName 'PostToolUse' -Data (Tool 'Write' @{ file_path = (Join-Path $script:Root 'project-ideas/notes.md'); content = 'x' })).Decision | Should -Be 'context'
+    }
     It 'structural-watch signale un bloc structurel' {
         (Invoke-Hook -EventName 'PostToolUse' -Data (Tool 'Edit' @{ file_path = (Join-Path $script:Root 'scripts/launch.ps1') })).Reason | Should -Match '/upstream'
     }
@@ -378,4 +497,69 @@ Describe 'pre-commit (gitleaks)' {
         Test-PreCommit | Should -Be 0
     }
 }
+}
+
+Describe 'doctor -Fix' {
+    BeforeAll {
+        # Faux claude et codegraph en tête du PATH : -Fix n'installe rien pour de vrai et ne crée aucun index,
+        # et chaque appel est noté. Un HOME vide donne un registre de plugins vide : les plugins du template manquent.
+        $script:Fake = Join-Path ([IO.Path]::GetTempPath()) "harness-fake-$([guid]::NewGuid())"
+        $script:Calls = Join-Path $script:Fake 'calls.log'
+        New-Item -ItemType Directory -Force (Join-Path $script:Fake 'bin'), (Join-Path $script:Fake 'home') | Out-Null
+        foreach ($tool in 'claude', 'codegraph') {
+            Set-Content (Join-Path $script:Fake 'bin' "$tool.ps1") "Add-Content '$($script:Calls)' ('$tool ' + (`$args -join ' '))"
+        }
+        # Une copie du projet, avec un fichier du harness modifié et le bloc de .gitignore retiré.
+        function New-ProjectCopy {
+            $copy = Join-Path $script:Fake "project-$([guid]::NewGuid())"
+            New-Item -ItemType Directory -Force $copy | Out-Null
+            foreach ($item in '.harness', '.claude', 'CLAUDE.md', '.copier-answers.harness.yml') {
+                Copy-Item (Join-Path $script:Root $item) $copy -Recurse
+            }
+            Set-Content (Join-Path $copy '.gitignore') 'node_modules/'
+            git -C $copy init -q -b main
+            Add-Content (Join-Path $copy '.harness' 'hooks' 'rules' 'PreToolUse' 'secret-guard.ps1') '# modifié à la main'
+            $copy
+        }
+        function Invoke-DoctorFix([string] $Project, [hashtable] $Env) {
+            $fakeHome = Join-Path $script:Fake 'home'
+            $vars = @{ PATH = (Join-Path $script:Fake 'bin') + [IO.Path]::PathSeparator + $env:PATH; HOME = $fakeHome; USERPROFILE = $fakeHome } + $Env
+            $saved = @{}
+            foreach ($k in $vars.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $vars[$k]) }
+            Remove-Item $script:Calls -ErrorAction SilentlyContinue
+            try { pwsh -NoProfile -NonInteractive -File (Join-Path $Project '.harness' 'tools' 'doctor.ps1') -Fix -Offline *>&1 | Out-String }
+            finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
+        }
+        function Get-Calls { if (Test-Path $script:Calls) { Get-Content $script:Calls } else { @() } }
+
+        $script:Copy = New-ProjectCopy
+        $script:Manifest = Join-Path $script:Copy '.harness' 'manifest.json'
+        $script:ManifestBefore = Get-FileHash $script:Manifest
+        $script:Output = Invoke-DoctorFix $script:Copy @{ HARNESS_SKIP_PLUGINS = '1' }
+        $script:SkipCalls = @(Get-Calls)
+    }
+    AfterAll { Remove-Item $script:Fake -Recurse -Force -ErrorAction SilentlyContinue }
+
+    It 'répare le bloc de .gitignore' {
+        Get-Content (Join-Path $script:Copy '.gitignore') -Raw | Should -Match '# >>> harness'
+    }
+    It 'ne réécrit pas le manifeste : un fichier du harness modifié reste visible' {
+        (Get-FileHash $script:Manifest).Hash | Should -Be $script:ManifestBefore.Hash
+        $script:Output | Should -Match 'fichiers du harness\s+FAIL'
+    }
+    It 'respecte HARNESS_SKIP_PLUGINS : aucun plugin installé' {
+        $script:SkipCalls | Where-Object { $_ -match '^claude plugin install' } | Should -BeNullOrEmpty
+    }
+    It 'installe les plugins manquants sans HARNESS_SKIP_PLUGINS (le faux claude est bien appelé)' {
+        Invoke-DoctorFix (New-ProjectCopy) @{ HARNESS_SKIP_PLUGINS = $null } | Out-Null
+        Get-Calls | Where-Object { $_ -match '^claude plugin install \S+ --scope project' } | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'outils du harness : aide lisible par Get-Help' {
+    # Un bloc <# #> collé à la ligne #Requires n'est pas reconnu comme une aide : Get-Help ne rend que la syntaxe.
+    It '<name> a un .SYNOPSIS que Get-Help affiche' -ForEach $Tools {
+        (Get-Help $path).Synopsis | Should -Not -BeNullOrEmpty
+        (Get-Help $path).Synopsis | Should -Not -Match '\.ps1\b.*\['
+    }
 }

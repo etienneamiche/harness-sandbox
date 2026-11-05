@@ -10,9 +10,9 @@ La session principale (Opus) orchestre. Elle confie le travail aux subagents, ch
 |---|---|---|
 | Explorer le code, trouver où se trouve quelque chose | `explorer` | Haiku |
 | Écrire ou modifier du code et ses tests | `dev` | Opus |
-| Nettoyer le lint et le format | `linter` | Haiku |
+| Nettoyer le lint et le format (`/lint`) | `linter` | Haiku |
 | Relire un diff pendant le développement | `reviewer` | Haiku |
-| Écrire un message de commit, commiter, pousser, ouvrir une PR, gérer issues et labels | `git-ops` | Haiku |
+| Écrire un message de commit (dans `/ship`, la session le rédige et `git-ops` l'applique tel quel), commiter, pousser, ouvrir une PR, gérer issues et labels | `git-ops` | Haiku |
 | Résumer l'architecture existante | `cartographer` | Haiku |
 | Appliquer les migrations SQL en local et régénérer le code EF | `db-ops` | Haiku |
 | Concevoir : spécification, architecture, roadmap | `architect` | Opus |
@@ -36,7 +36,7 @@ La session principale (Opus) orchestre. Elle confie le travail aux subagents, ch
 
 ## Revue
 
-- Pendant le développement : `reviewer` relit le diff, autant de fois que nécessaire.
+- Pendant le développement : `/review` fait relire le travail en cours par `reviewer`, autant de fois que nécessaire, puis trie ses constats.
 - **Avant toute fusion : `/audit-pr`**, une revue complète de la PR par `auditor`. La fusion passe par `.harness/tools/merge-pr.ps1` (via `git-ops`), qui refuse sans verdict `approve` sur le dernier commit de la PR, et ne fusionne que ce commit-là.
 
 ## Secrets

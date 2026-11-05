@@ -1,4 +1,5 @@
 #Requires -Version 7.4
+
 <#
 .SYNOPSIS
     Doctor du harness pour ce dépôt : tout est-il en place et fonctionnel ?
@@ -106,7 +107,8 @@ if (-not (Get-Command gitleaks -ErrorAction SilentlyContinue)) { Add-Result 'git
 # --- .gitignore -------------------------------------------------------------------
 $gitignore = Join-Path $root '.gitignore'
 $hasBlock = (Test-Path $gitignore) -and ((Get-Content $gitignore -Raw) -match '# >>> harness')
-if (-not $hasBlock -and $Fix) { & (Join-Path $PSScriptRoot 'post-install.ps1') -SkipPlugins | Out-Null; $hasBlock = $true }
+# -SkipManifest : réécrire le manifeste ici masquerait un fichier du harness modifié.
+if (-not $hasBlock -and $Fix) { & (Join-Path $PSScriptRoot 'post-install.ps1') -SkipPlugins -SkipManifest | Out-Null; $hasBlock = $true }
 if ($hasBlock) { Add-Result '.gitignore' 'OK' 'bloc harness présent' } else { Add-Result '.gitignore' 'FAIL' 'bloc harness absent (-Fix)' }
 
 # --- Plugins ----------------------------------------------------------------------
@@ -118,7 +120,8 @@ $missingPlugins = @(@($settings.enabledPlugins.Keys) | Where-Object {
         $_.scope -eq 'user' -or ($_.projectPath -and [IO.Path]::GetFullPath($_.projectPath) -eq $root)
     }))
 })
-if ($missingPlugins -and $Fix -and (Get-Command claude -ErrorAction SilentlyContinue)) {
+# HARNESS_SKIP_PLUGINS vaut aussi pour -Fix : `claude plugin install` réécrit settings.json (harness#4).
+if ($missingPlugins -and $Fix -and -not $env:HARNESS_SKIP_PLUGINS -and (Get-Command claude -ErrorAction SilentlyContinue)) {
     Push-Location $root
     try { foreach ($p in $missingPlugins) { claude plugin install $p --scope project --json 2>$null | Out-Null } }
     finally { Pop-Location }

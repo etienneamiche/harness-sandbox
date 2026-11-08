@@ -21,6 +21,8 @@
 
 **Lancement** : `pwsh -NoProfile -File src/pomodoro/pomodoro.ps1 [-Minutes <1-180>]`. Tests : `scripts/test.ps1`.
 
+Les tests du minuteur se lancent par `scripts/test.ps1`.
+
 **Contrat de sortie** :
 
 - Séance menée à son terme : « Séance terminée » s'affiche et un seul objet est rendu, avec `PlannedMinutes` (`[int]`), `StartedAt` et `EndedAt` (`[DateTimeOffset]`). Le script termine avec le code de sortie 0.

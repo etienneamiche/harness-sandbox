@@ -527,6 +527,381 @@ Describe 'Pomodoro' {
         }
     }
 
+    Context 'Weekly summary' {
+        BeforeAll {
+            $script:fixedClock = { [DateTimeOffset]'2026-11-07T10:00:00+01:00' }
+
+            function New-LogLine {
+                param([string] $EndedAt, [int] $Minutes = 25, [AllowNull()] [object] $Tag = $null)
+                [ordered]@{ endedAt = $EndedAt; minutes = $Minutes; tag = $Tag } | ConvertTo-Json -Compress
+            }
+
+            function Set-TestLog {
+                param([string[]] $Line)
+                [IO.File]::WriteAllText($script:logPath, (($Line -join "`n") + "`n"))
+            }
+
+            function Get-TestSummary {
+                Get-PomodoroSummary -Path $script:logPath -Clock $script:fixedClock
+            }
+        }
+
+        Context 'Window' {
+            It 'goes from today minus 6 to today' {
+                $summary = Get-TestSummary
+
+                $summary.From | Should -Be ([datetime]'2026-11-01')
+                $summary.To | Should -Be ([datetime]'2026-11-07')
+            }
+
+            It 'takes today in the offset of the clock' {
+                # Already November 8th in UTC.
+                $summary = Get-PomodoroSummary -Path $script:logPath -Clock { [DateTimeOffset]'2026-11-07T23:30:00-05:00' }
+
+                $summary.To | Should -Be ([datetime]'2026-11-07')
+            }
+
+            It 'excludes <EndedAt>' -ForEach @(
+                @{ EndedAt = '2026-10-31T23:59+01:00' }
+                @{ EndedAt = '2026-11-08T00:10+01:00' }
+            ) {
+                Set-TestLog (New-LogLine $EndedAt)
+
+                (Get-TestSummary).Sessions | Should -Be 0
+            }
+
+            It 'counts <EndedAt> on the day it was recorded' -ForEach @(
+                @{ EndedAt = '2026-11-01T00:00+01:00'; Index = 0 }
+                @{ EndedAt = '2026-11-07T23:59+01:00'; Index = 6 }
+                # 2026-10-31 at 22:30 UTC: only the recorded offset puts it on November 1st.
+                @{ EndedAt = '2026-11-01T00:30+02:00'; Index = 0 }
+            ) {
+                Set-TestLog (New-LogLine $EndedAt -Minutes 25)
+
+                $summary = Get-TestSummary
+
+                $summary.Sessions | Should -Be 1
+                $summary.Days[$Index].Sessions | Should -Be 1
+                $summary.Days[$Index].Minutes | Should -Be 25
+            }
+
+            It 'includes a session dated today but later than the clock' {
+                Set-TestLog (New-LogLine '2026-11-07T18:00+01:00')
+
+                (Get-TestSummary).Days[6].Sessions | Should -Be 1
+            }
+        }
+
+        Context 'Offset on reading' {
+            It 'keeps the offset <Offset> written in the line' -ForEach @(
+                # Two offsets: at least one differs from the time zone of the machine.
+                @{ Offset = '+02:00'; Expected = [TimeSpan]::FromHours(2) }
+                @{ Offset = '-05:00'; Expected = [TimeSpan]::FromHours(-5) }
+            ) {
+                Set-TestLog (New-LogLine "2026-11-01T00:30:00$Offset")
+
+                (Get-PomodoroLog -Path $script:logPath).EndedAt.Offset | Should -Be $Expected
+            }
+        }
+
+        Context 'By day' {
+            It 'always has 7 days, oldest first, with the empty ones at zero' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Minutes 25)
+                    (New-LogLine '2026-11-02T10:00+01:00' -Minutes 30)
+                )
+
+                $days = (Get-TestSummary).Days
+
+                $days.Date | Should -Be @(0..6 | ForEach-Object { ([datetime]'2026-11-01').AddDays($_) })
+                $days.Sessions | Should -Be @(0, 2, 0, 0, 0, 0, 0)
+                $days.Minutes | Should -Be @(0, 55, 0, 0, 0, 0, 0)
+            }
+        }
+
+        Context 'By tag' {
+            It 'groups regardless of case' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Tag 'Dev')
+                    (New-LogLine '2026-11-03T09:00+01:00' -Tag 'dev')
+                )
+
+                $tags = @((Get-TestSummary).Tags)
+
+                $tags.Count | Should -Be 1
+                $tags[0].Sessions | Should -Be 2
+                $tags[0].Minutes | Should -Be 50
+            }
+
+            It 'groups regardless of case under a culture where I and i differ' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Tag 'DIV')
+                    (New-LogLine '2026-11-03T09:00+01:00' -Tag 'div')
+                )
+                $previous = [CultureInfo]::CurrentCulture
+                [CultureInfo]::CurrentCulture = 'tr-TR'
+                try { $tags = @((Get-TestSummary).Tags) }
+                finally { [CultureInfo]::CurrentCulture = $previous }
+
+                $tags.Count | Should -Be 1
+            }
+
+            It 'keeps the spelling of the first session in journal order, not in time' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-06T09:00+01:00' -Tag 'DEV')
+                    (New-LogLine '2026-11-02T09:00+01:00' -Tag 'dev')
+                )
+
+                (Get-TestSummary).Tags[0].Label | Should -BeExactly 'DEV'
+            }
+
+            It 'ignores the spelling of a session outside the window' {
+                Set-TestLog @(
+                    (New-LogLine '2026-10-20T09:00+01:00' -Tag 'OLD')
+                    (New-LogLine '2026-11-02T09:00+01:00' -Tag 'old')
+                )
+
+                (Get-TestSummary).Tags[0].Label | Should -BeExactly 'old'
+            }
+
+            It 'lists only the tags with a session in the window' {
+                Set-TestLog @(
+                    (New-LogLine '2026-10-20T09:00+01:00' -Tag 'old')
+                    (New-LogLine '2026-11-02T09:00+01:00' -Tag 'dev')
+                )
+
+                (Get-TestSummary).Tags.Label | Should -Be @('dev')
+            }
+
+            It 'merges null, empty and blank tags into one last line, even with the most minutes' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Minutes 60)
+                    (New-LogLine '2026-11-02T10:00+01:00' -Minutes 60 -Tag '')
+                    (New-LogLine '2026-11-02T11:00+01:00' -Minutes 60 -Tag '   ')
+                    (New-LogLine '2026-11-02T12:00+01:00' -Minutes 5 -Tag 'dev')
+                )
+
+                $tags = @((Get-TestSummary).Tags)
+                $lines = @(Get-TestSummary | Format-PomodoroSummary)
+
+                $tags.Count | Should -Be 2
+                $tags[1].Sessions | Should -Be 3
+                $tags[1].Minutes | Should -Be 180
+                $lines[-3] | Should -BeLike '(sans étiquette)*'
+            }
+
+            It 'sorts by minutes descending' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Minutes 10 -Tag 'a')
+                    (New-LogLine '2026-11-02T10:00+01:00' -Minutes 30 -Tag 'b')
+                    (New-LogLine '2026-11-02T11:00+01:00' -Minutes 20 -Tag 'c')
+                )
+
+                (Get-TestSummary).Tags.Label | Should -Be @('b', 'c', 'a')
+            }
+
+            It 'breaks ties by label, ordinal and without case' {
+                # Ordinal: é sorts after f, unlike in a French sort. Case-insensitive: b sorts before C.
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Tag 'é')
+                    (New-LogLine '2026-11-02T10:00+01:00' -Tag 'f')
+                    (New-LogLine '2026-11-02T11:00+01:00' -Tag 'C')
+                    (New-LogLine '2026-11-02T12:00+01:00' -Tag 'b')
+                )
+
+                (Get-TestSummary).Tags.Label | Should -BeExactly @('b', 'C', 'f', 'é')
+            }
+
+            It 'accepts a tag named like a member of the dictionary' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Tag 'Values')
+                    (New-LogLine '2026-11-02T10:00+01:00' -Tag 'Count')
+                )
+
+                (Get-TestSummary).Tags.Label | Should -BeExactly @('Count', 'Values')
+            }
+        }
+
+        Context 'Total' {
+            It 'equals the sum of the days and the sum of the tags' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Minutes 25 -Tag 'dev')
+                    (New-LogLine '2026-11-03T09:00+01:00' -Minutes 30)
+                    (New-LogLine '2026-11-07T09:00+01:00' -Minutes 50 -Tag 'docs')
+                    (New-LogLine '2026-10-20T09:00+01:00' -Minutes 99 -Tag 'dev')
+                )
+
+                $summary = Get-TestSummary
+
+                $summary.Sessions | Should -Be 3
+                $summary.Minutes | Should -Be 105
+                ($summary.Days | Measure-Object Sessions -Sum).Sum | Should -Be $summary.Sessions
+                ($summary.Days | Measure-Object Minutes -Sum).Sum | Should -Be $summary.Minutes
+                ($summary.Tags | Measure-Object Sessions -Sum).Sum | Should -Be $summary.Sessions
+                ($summary.Tags | Measure-Object Minutes -Sum).Sum | Should -Be $summary.Minutes
+            }
+        }
+
+        Context 'Format' {
+            BeforeEach {
+                $script:previousCulture2 = [CultureInfo]::CurrentCulture
+                # The dates must come from the language file, not from the machine.
+                [CultureInfo]::CurrentCulture = 'en-US'
+            }
+
+            AfterEach {
+                [CultureInfo]::CurrentCulture = $script:previousCulture2
+            }
+
+            It 'matches the expected text, line by line' {
+                Set-TestLog @(
+                    (New-LogLine '2026-11-02T09:00+01:00' -Minutes 25 -Tag 'dev')
+                    (New-LogLine '2026-11-02T10:00+01:00' -Minutes 25)
+                    (New-LogLine '2026-11-07T08:00+01:00' -Minutes 25 -Tag 'dev')
+                    (New-LogLine '2026-11-07T09:00+01:00' -Minutes 25 -Tag 'Dev')
+                    (New-LogLine '2026-11-07T09:30+01:00' -Minutes 25)
+                )
+
+                $lines = @(Get-TestSummary | Format-PomodoroSummary)
+
+                $lines | Should -BeExactly @(
+                    'Pomodoro : du dim. 01/11/2026 au sam. 07/11/2026'
+                    ''
+                    'Jour              Séances  Minutes'
+                    'dim. 01/11/2026         0        0'
+                    'lun. 02/11/2026         2       50'
+                    'mar. 03/11/2026         0        0'
+                    'mer. 04/11/2026         0        0'
+                    'jeu. 05/11/2026         0        0'
+                    'ven. 06/11/2026         0        0'
+                    'sam. 07/11/2026         3       75'
+                    ''
+                    'Étiquette         Séances  Minutes'
+                    'dev                     3       75'
+                    '(sans étiquette)        2       50'
+                    ''
+                    'Total                   5      125'
+                )
+            }
+
+            It 'lets a tag longer than the column overflow, without truncating it' {
+                Set-TestLog (New-LogLine '2026-11-02T09:00+01:00' -Tag 'etiquette-tres-longue')
+
+                $lines = @(Get-TestSummary | Format-PomodoroSummary)
+
+                $lines | Should -Contain 'etiquette-tres-longue        1       25'
+            }
+        }
+
+        Context 'Missing or empty journal' {
+            It 'shows 7 days at zero and the empty message when the journal is <Label>' -ForEach @(
+                @{ Label = 'missing'; Create = $false }
+                @{ Label = 'empty'; Create = $true }
+            ) {
+                if ($Create) { [IO.File]::WriteAllBytes($script:logPath, [byte[]]::new(0)) }
+
+                # Redirected: -ErrorVariable and -WarningVariable do not see what the inner Get-PomodoroLog writes.
+                $output = @(Get-TestSummary 2>&1 3>&1)
+                $output.Count | Should -Be 1
+                $summary = $output[0]
+                $lines = @($summary | Format-PomodoroSummary)
+
+                $summary.Days.Count | Should -Be 7
+                $summary.Days.Sessions | Should -Be @(0, 0, 0, 0, 0, 0, 0)
+                $summary.Days.Minutes | Should -Be @(0, 0, 0, 0, 0, 0, 0)
+                @($summary.Tags).Count | Should -Be 0
+                $lines[10..12] | Should -Be @('', 'Aucune séance sur cette période.', '')
+                $lines[13] | Should -Be 'Total                   0        0'
+                $lines.Count | Should -Be 14
+            }
+
+            It 'warns about an unreadable line and counts the others' {
+                [IO.File]::WriteAllText($script:logPath, "$(New-LogLine '2026-11-02T09:00+01:00')`n{oops`n$(New-LogLine '2026-11-03T09:00+01:00')`n")
+
+                $output = @(Get-TestSummary 3>&1)
+                $warnings = @($output | Where-Object { $_ -is [Management.Automation.WarningRecord] })
+
+                ($output | Where-Object { $_ -isnot [Management.Automation.WarningRecord] }).Sessions | Should -Be 2
+                $warnings.Count | Should -Be 1
+                $warnings[0].Message | Should -Be 'Journal : ligne 2 illisible, ignorée.'
+            }
+        }
+
+        Context 'pomodoro.ps1 -Summary' {
+            BeforeEach {
+                Mock Start-PomodoroSession { }
+                Mock Add-PomodoroLogEntry { }
+                Mock Get-PomodoroSummary { }
+            }
+
+            It 'starts no session and writes nothing' {
+                & $script:scriptPath -Summary -LogPath $script:logPath
+
+                Should -Invoke Start-PomodoroSession -Exactly 0
+                Should -Invoke Add-PomodoroLogEntry -Exactly 0
+            }
+
+            It 'forwards -Path when -LogPath is given' {
+                & $script:scriptPath -Summary -LogPath $script:logPath
+
+                Should -Invoke Get-PomodoroSummary -Exactly 1 -ParameterFilter { $Path -eq $script:logPath }
+            }
+
+            It 'forwards nothing without -LogPath, even with -Tag' {
+                & $script:scriptPath -Summary -Tag 'dev'
+
+                Should -Invoke Get-PomodoroSummary -Exactly 1 -ParameterFilter { $PesterBoundParameters.Count -eq 0 }
+            }
+
+            It 'runs a session with -Summary:$false, without forwarding the switch' {
+                & $script:scriptPath -Summary:$false -LogPath $script:logPath
+
+                Should -Invoke Get-PomodoroSummary -Exactly 0
+                Should -Invoke Start-PomodoroSession -Exactly 1 -ParameterFilter { $PesterBoundParameters.Count -eq 0 }
+            }
+        }
+
+        Context 'pomodoro.ps1 -Summary, as a process' {
+            BeforeEach {
+                Push-Location $TestDrive
+                # An alias wins over the module's function: the fixed clock stays off the command line (ADR 0001).
+                $script:fixedClockRunner = Join-Path $TestDrive 'run-with-fixed-clock.ps1'
+                Set-Content -LiteralPath $script:fixedClockRunner -Value @'
+param($ScriptPath, $LogPath)
+function global:Get-FixedClockSummary { Pomodoro\Get-PomodoroSummary @args -Clock { [DateTimeOffset]'2026-11-07T10:00:00+01:00' } }
+Set-Alias -Name Get-PomodoroSummary -Value Get-FixedClockSummary -Scope Global
+& $ScriptPath -Summary -LogPath $LogPath
+exit $LASTEXITCODE
+'@
+            }
+
+            AfterEach {
+                Pop-Location
+            }
+
+            It 'prints the summary, exits with code 0 and leaves the journal untouched' {
+                Set-TestLog (New-LogLine '2026-11-02T09:00+01:00' -Tag 'dev')
+                $before = (Get-FileHash -LiteralPath $script:logPath).Hash
+
+                $output = @(pwsh -NoProfile -File $script:fixedClockRunner $script:scriptPath $script:logPath 2>&1)
+
+                $LASTEXITCODE | Should -Be 0
+                $output[0] | Should -Be 'Pomodoro : du dim. 01/11/2026 au sam. 07/11/2026'
+                $output[-1] | Should -Be 'Total                   1       25'
+                (Get-FileHash -LiteralPath $script:logPath).Hash | Should -Be $before
+            }
+
+            It 'exits with code 0 without error and creates nothing when the journal is missing' {
+                $output = @(pwsh -NoProfile -File $script:fixedClockRunner $script:scriptPath $script:logPath 2>&1)
+
+                $LASTEXITCODE | Should -Be 0
+                @($output | Where-Object { $_ -is [Management.Automation.ErrorRecord] }).Count | Should -Be 0
+                $output[-1] | Should -Be 'Total                   0        0'
+                $script:logPath | Should -Not -Exist
+            }
+        }
+    }
+
     # Keep last: it reads the calls recorded by every test above.
     It 'never called the real Start-Sleep' {
         Should -Invoke Start-Sleep -ModuleName Pomodoro -Exactly 0 -Scope Describe

@@ -142,4 +142,90 @@ function Get-PomodoroLog {
     }
 }
 
-Export-ModuleMember -Function Start-PomodoroSession, Add-PomodoroLogEntry, Get-PomodoroLog
+function Get-PomodoroSummary {
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [ValidateNotNullOrEmpty()]
+        [string] $Path = $script:LogPath,
+
+        [scriptblock] $Clock = { [DateTimeOffset]::Now }
+    )
+
+    [DateTimeOffset] $now = & $Clock
+    $to = $now.Date
+    $from = $to.AddDays(-6)
+    # .Date reads the calendar day in the recorded offset: no conversion to the machine's time zone.
+    $sessions = @(Get-PomodoroLog -Path $Path | Where-Object { $_.EndedAt.Date -ge $from -and $_.EndedAt.Date -le $to })
+
+    $days = foreach ($index in 0..6) {
+        $date = $from.AddDays($index)
+        $ofDay = @($sessions | Where-Object { $_.EndedAt.Date -eq $date })
+        [pscustomobject]@{ Date = $date; Sessions = $ofDay.Count; Minutes = [long] ($ofDay | Measure-Object Minutes -Sum).Sum }
+    }
+
+    # Not Group-Object: it compares with the machine's culture, so DIV and div stay apart under tr-TR.
+    $groups = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($session in $sessions) {
+        # '' is the key of the sessions without a tag: a real tag is never blank.
+        $key = [string]::IsNullOrWhiteSpace($session.Tag) ? '' : $session.Tag
+        if (-not $groups.ContainsKey($key)) { $groups[$key] = [pscustomobject]@{ Label = $key; Sessions = 0; Minutes = 0L } }
+        $groups[$key].Sessions++
+        $groups[$key].Minutes += $session.Minutes
+    }
+
+    # get_Values(): with .Values, a tag named "Values" would be returned instead of the collection.
+    $tags = [Collections.Generic.List[object]]::new($groups.get_Values())
+    # Sort-Object can only compare with a culture, and the labels sort ordinally.
+    $tags.Sort([Comparison[object]] {
+            param($x, $y)
+            $order = (-not $x.Label).CompareTo((-not $y.Label))
+            if (-not $order) { $order = $y.Minutes.CompareTo($x.Minutes) }
+            if (-not $order) { $order = [string]::Compare($x.Label, $y.Label, [StringComparison]::OrdinalIgnoreCase) }
+            $order
+        })
+
+    [pscustomobject]@{
+        From     = $from
+        To       = $to
+        Days     = @($days)
+        Tags     = $tags.ToArray()
+        Sessions = $sessions.Count
+        Minutes  = [long] ($sessions | Measure-Object Minutes -Sum).Sum
+    }
+}
+
+function Format-PomodoroSummary {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [pscustomobject] $Summary
+    )
+
+    process {
+        $texts = $script:Messages
+        $culture = [CultureInfo]::GetCultureInfo($texts.DateCulture)
+
+        $texts.SummaryTitle -f $Summary.From.ToString($texts.DateFormat, $culture), $Summary.To.ToString($texts.DateFormat, $culture)
+        ''
+        $texts.SummaryRow -f $texts.SummaryDay, $texts.SummarySessions, $texts.SummaryMinutes
+        foreach ($day in $Summary.Days) {
+            $texts.SummaryRow -f $day.Date.ToString($texts.DateFormat, $culture), $day.Sessions, $day.Minutes
+        }
+        ''
+        if ($Summary.Tags.Count -eq 0) {
+            $texts.SummaryEmpty
+        }
+        else {
+            $texts.SummaryRow -f $texts.SummaryTag, $texts.SummarySessions, $texts.SummaryMinutes
+            foreach ($tag in $Summary.Tags) {
+                $texts.SummaryRow -f ($tag.Label ? $tag.Label : $texts.SummaryNoTag), $tag.Sessions, $tag.Minutes
+            }
+        }
+        ''
+        $texts.SummaryRow -f $texts.SummaryTotal, $Summary.Sessions, $Summary.Minutes
+    }
+}
+
+Export-ModuleMember -Function Start-PomodoroSession, Add-PomodoroLogEntry, Get-PomodoroLog, Get-PomodoroSummary, Format-PomodoroSummary

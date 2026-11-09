@@ -61,7 +61,8 @@ function Add-PomodoroLogEntry {
 
         # Validated at binding, before any command of the pipeline runs: an invalid tag prevents the session from starting.
         [ValidateScript({
-                if ($_ -match '\p{Cc}' -or $_.Trim().Length -notin 1..50) { throw $script:Messages.InvalidTag }
+                # Perceived characters: .Length counts two units per emoji.
+                if ($_ -match '\p{Cc}' -or [Globalization.StringInfo]::new($_.Trim()).LengthInTextElements -notin 1..50) { throw $script:Messages.InvalidTag }
                 $true
             })]
         [string] $Tag,
@@ -78,7 +79,10 @@ function Add-PomodoroLogEntry {
         } | ConvertTo-Json -Compress
 
         try {
-            $file = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($Path)
+            $provider = $drive = $null
+            $file = $PSCmdlet.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path, [ref] $provider, [ref] $drive)
+            # .NET would take a registry path for a relative file path and write under the current directory.
+            if ($provider.Name -ne 'FileSystem') { throw }
             $null = [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($file))
             # A journal edited by hand may not end with a line feed: the new line must not stick to the last one.
             $separator = ''

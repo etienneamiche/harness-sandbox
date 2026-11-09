@@ -269,6 +269,31 @@ Describe 'Pomodoro' {
         }
     }
 
+    Context 'pomodoro.ps1 exit code' {
+        BeforeEach {
+            # The child process inherits this folder: nothing it could write reaches the repository.
+            Push-Location $TestDrive
+        }
+
+        AfterEach {
+            Pop-Location
+        }
+
+        # -Minutes 1 bounds the run if a regression ever lets the session start.
+        It 'exits with code 1 for a blank tag and writes nothing' {
+            $null = pwsh -NoProfile -File $script:scriptPath -Minutes 1 -Tag '   ' -LogPath $script:logPath 2>&1
+
+            $LASTEXITCODE | Should -Be 1
+            $script:logPath | Should -Not -Exist
+        }
+
+        It 'exits with code 1 for an empty log path' {
+            $null = pwsh -NoProfile -File $script:scriptPath -Minutes 1 -LogPath '' 2>&1
+
+            $LASTEXITCODE | Should -Be 1
+        }
+    }
+
     Context 'Add-PomodoroLogEntry' {
         It 'creates no file without an input object' {
             @() | Add-PomodoroLogEntry -Path $script:logPath
@@ -312,6 +337,15 @@ Describe 'Pomodoro' {
             $after[$existing.Length] | Should -Be 10
         }
 
+        It 'starts on the first byte of an existing empty journal' {
+            [IO.File]::WriteAllBytes($script:logPath, [byte[]]::new(0))
+
+            $script:session | Add-PomodoroLogEntry -Path $script:logPath
+
+            [IO.File]::ReadAllBytes($script:logPath)[0] | Should -Be ([byte][char]'{')
+            @(Get-PomodoroLog -Path $script:logPath).Count | Should -Be 1
+        }
+
         It 'writes one compact UTF-8 line without BOM' {
             $script:session | Add-PomodoroLogEntry -Tag 'dev' -Path $script:logPath
 
@@ -340,10 +374,22 @@ Describe 'Pomodoro' {
             (Get-PomodoroLog -Path $script:logPath).Tag.Length | Should -Be 50
         }
 
+        It 'accepts a tag of 50 <Label>' -ForEach @(
+            @{ Label = 'emoji'; Character = "`u{1F345}" }
+            @{ Label = 'joined emoji'; Character = "`u{1F468}`u{200D}`u{1F469}" }
+        ) {
+            $tag = $Character * 50
+
+            $script:session | Add-PomodoroLogEntry -Tag $tag -Path $script:logPath
+
+            (Get-PomodoroLog -Path $script:logPath).Tag | Should -BeExactly $tag
+        }
+
         It 'refuses the tag <Label> and writes nothing' -ForEach @(
             @{ Label = 'empty'; Value = '' }
             @{ Label = 'blank'; Value = '   ' }
             @{ Label = 'too long'; Value = 'x' * 51 }
+            @{ Label = 'of 51 emoji'; Value = "`u{1F345}" * 51 }
             @{ Label = 'with an inner line feed'; Value = "a`nb" }
             @{ Label = 'with a final line feed'; Value = "a`n" }
             @{ Label = 'with a tab'; Value = "`ta" }
@@ -365,6 +411,20 @@ Describe 'Pomodoro' {
         It 'throws a translated error citing the path when it cannot write' {
             { $script:session | Add-PomodoroLogEntry -Path $TestDrive } |
                 Should -Throw -ExpectedMessage "Impossible d'écrire dans le journal : $TestDrive"
+        }
+
+        It 'refuses a path outside the file system and creates nothing' {
+            $path = 'HKCU:\pomodoro-test\sessions.jsonl'
+            # A regression writes relative to the process folder: it must land in the test drive, not in the repository.
+            $previous = [Environment]::CurrentDirectory
+            [Environment]::CurrentDirectory = $TestDrive
+            try {
+                { $script:session | Add-PomodoroLogEntry -Path $path } |
+                    Should -Throw -ExpectedMessage "Impossible d'écrire dans le journal : $path"
+            }
+            finally { [Environment]::CurrentDirectory = $previous }
+
+            Join-Path $TestDrive 'HKEY_CURRENT_USER' | Should -Not -Exist
         }
     }
 

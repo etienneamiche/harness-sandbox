@@ -12,6 +12,9 @@ param(
     [string] $LogPath
 )
 
+# Otherwise a refused tag or log path only ends the chain and the script still exits with code 0.
+$ErrorActionPreference = 'Stop'
+
 Import-Module (Join-Path $PSScriptRoot 'Pomodoro.psm1')
 $log = @{}
 if ($PSBoundParameters.Remove('Tag')) { $log.Tag = $Tag }

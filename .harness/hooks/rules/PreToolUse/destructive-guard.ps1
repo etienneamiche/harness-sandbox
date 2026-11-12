@@ -14,7 +14,8 @@
         if (-not (Test-AnyMatch $cmd $patterns)) { return }
 
         $state = Get-HarnessStatePath $ctx.SessionId 'destructive'
-        $seen = if (Test-Path $state) { @(Get-Content $state -Raw | ConvertFrom-Json) } else { @() }
+        # @() autour du if : sans lui, une liste d'un seul élément devient une chaîne, et $seen + $key concatène.
+        $seen = @(if (Test-Path $state) { Get-Content $state -Raw | ConvertFrom-Json })
         $key = Get-StringHash $cmd.Trim()
         if ($seen -contains $key) { return }
 

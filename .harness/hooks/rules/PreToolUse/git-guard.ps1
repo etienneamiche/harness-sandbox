@@ -410,7 +410,7 @@
         # .harness/tools/merge-pr.ps1, aux paramètres typés, qui vérifie la revue auditor et fusionne
         # le commit revu et lui seul (--match-head-commit). Ce script est réservé à git-ops (§2).
         if ($cmd -match '\bgh(\s+(-R|--repo)(=|\s+)\S+|\s+--?[\w-]+)*\s+pr\s+merge\b') {
-            return @{ Decision = 'deny'; Reason = "pas de 'gh pr merge' direct : fusionner avec pwsh -NoProfile -File .harness/tools/merge-pr.ps1 -Pr <n> -Subject `"type(scope): description (#n)`" (-Strategy merge pour une release ou un hotfix)." }
+            return @{ Decision = 'deny'; Reason = "pas de 'gh pr merge' direct : fusionner avec pwsh -NoProfile -File .harness/tools/merge-pr.ps1 -Pr <n> -Subject `"type(scope): description (#n)`" (-Strategy merge pour une release, un hotfix ou le report de main dans develop, en gitflow seulement)." }
         }
     }
 }

@@ -672,9 +672,28 @@ Describe 'merge-pr.ps1' {
 }
 
 Describe 'destructive-guard' {
+    BeforeAll { Import-Module (Join-Path $script:Root '.harness' 'hooks' 'HarnessHooks.psm1') -Force }
     It 'refuse au premier essai puis accepte la même commande' {
         (Invoke-Hook -Data (Bash 'rm -rf build')).Decision | Should -Be 'deny'
         (Invoke-Hook -Data (Bash 'rm -rf build')).Decision | Should -Be 'allow'
+    }
+    It 'accepte au deuxième essai chaque commande d''une même session' {
+        $cmds = 'rm -rf build', 'git reset --hard HEAD~1', 'tofu destroy'
+        foreach ($c in $cmds) {
+            (Invoke-Hook -Data (Bash $c)).Decision | Should -Be 'deny'
+            (Invoke-Hook -Data (Bash $c)).Decision | Should -Be 'allow'
+        }
+        foreach ($c in $cmds) { (Invoke-Hook -Data (Bash $c)).Decision | Should -Be 'allow' }
+        $state = Get-HarnessStatePath $script:SessionId 'destructive'
+        @(Get-Content $state -Raw | ConvertFrom-Json).Count | Should -Be 3
+    }
+    It 'n''est pas bloqué par un état écrit par l''ancienne version' {
+        # L'ancienne version écrivait un tableau d'un seul élément, les empreintes collées, qui ne correspond à aucune commande.
+        '["0123456789abcdef0123456789abcdef"]' | Set-Content (Get-HarnessStatePath $script:SessionId 'destructive')
+        (Invoke-Hook -Data (Bash 'rm -rf build')).Decision | Should -Be 'deny'
+        (Invoke-Hook -Data (Bash 'rm -rf build')).Decision | Should -Be 'allow'
+        (Invoke-Hook -Data (Bash 'tofu destroy')).Decision | Should -Be 'deny'
+        (Invoke-Hook -Data (Bash 'tofu destroy')).Decision | Should -Be 'allow'
     }
     It 'reconnaît <cmd>' -ForEach @(
         @{ cmd = 'Remove-Item ./dist -Recurse -Force' }, @{ cmd = 'git reset --hard HEAD~1' },

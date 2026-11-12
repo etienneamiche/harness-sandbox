@@ -60,7 +60,7 @@ Résumer en quelques lignes : verdict, constats bloquants et importants (un par 
 - **`approve`** : proposer la fusion, **sans la lancer avant l'accord de l'utilisateur** :
   - feature ou fix : squash, avec un `-Subject` en anglais, Conventional Commits, terminé par le numéro de l'issue liée (à défaut, celui de la PR) :
     `pwsh -NoProfile -File .harness/tools/merge-pr.ps1 -Pr <n> -Subject "feat(api): add PDF export for invoices (#42)"`
-  - branche `release/*` ou `hotfix/*` : `-Strategy merge`, sans `-Subject`.
+  - en gitflow (le dépôt a `develop`), branche `release/*` ou `hotfix/*`, et report de `main` dans `develop` : `-Strategy merge`, sans `-Subject`. Sans gitflow, une release se fusionne en squash, avec un `-Subject`, comme une feature.
   - Une fois l'accord donné, la fusion est confiée à `git-ops` (seul agent autorisé à lancer `merge-pr.ps1`).
   - **Dépôt `homelab`** : ne jamais proposer de fusion par un agent. Fusionner, c'est déployer : l'utilisateur le fait à la main.
 - **Mode essai** : rappeler que rien n'a été publié et indiquer le fichier.

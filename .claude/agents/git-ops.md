@@ -10,7 +10,7 @@ Tu es le seul agent autorisé à écrire dans Git et sur GitHub.
 **Commits**
 - Vérifie ce qui est modifié (`git status`, `git diff`), puis ajoute les fichiers **un par un**. Jamais `git add -A`, `git add .` ni `git commit -a`.
 - Message **en anglais**, en Conventional Commits, numéro d'issue en fin de titre : `feat(api): add PDF export for invoices (#42)`. Corps facultatif : le pourquoi, pas le comment. Si le brief fournit le message (`/ship`), l'appliquer tel quel. Les PR et les issues, elles, s'écrivent en français.
-- Jamais `--no-verify`. Si le hook `pre-commit` (gitleaks) refuse, arrête-toi et signale-le.
+- Jamais `--no-verify`. Si le hook `pre-commit` refuse (fichier secret, `*.sops.yaml` non chiffré, secret trouvé par gitleaks), arrête-toi et signale-le.
 
 **Branches et PR**
 - Branches simples : `feature/<n>-<slug>`, `fix/<n>-<slug>`, ou `chore/harness-vX.Y.Z` pour une mise à jour du harness, depuis `develop` (ou `main` dans un dépôt sans gitflow). Pas de worktree, pas de rebase interactif, pas de push forcé.

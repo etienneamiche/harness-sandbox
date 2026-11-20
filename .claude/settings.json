@@ -1,7 +1,9 @@
 {
   "model": "opus",
   "env": {
-    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku",
+    "PONYTAIL_DEFAULT_MODE": "full",
+    "PONYTAIL_SUBAGENT_MATCHER": "^(dev|reviewer|auditor|architect|db-ops)$"
   },
   "permissions": {
     "deny": [
@@ -20,6 +22,20 @@
       "Read(./**/*.pfx)",
       "Read(./**/*.p12)",
       "Read(./**/secrets.json)",
+      "Read(./**/keys.txt)",
+      "Read(./**/*.tfstate)",
+      "Read(./**/*.tfstate.*)",
+      "Read(./**/*.tfvars)",
+      "Read(./**/*.tfvars.json)",
+      "Read(./**/*.tfplan)",
+      "Read(./**/kubeconfig)",
+      "Read(./**/kubeconfig.yaml)",
+      "Read(./**/kubeconfig.yml)",
+      "Read(./**/*.kubeconfig)",
+      "Read(./**/*.kubeconfig.yaml)",
+      "Read(./**/*.kubeconfig.yml)",
+      "Read(./**/k3s.yaml)",
+      "Read(~/.kube/**)",
       "Read(~/.ssh/**)",
       "Read(~/.git-credentials)",
       "Read(~/AppData/Roaming/sops/**)",

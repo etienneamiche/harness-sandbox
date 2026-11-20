@@ -13,5 +13,13 @@ secrets.json
 *.dec.yml
 *.decrypted.*
 
+# OpenTofu : l'état, les plans et les variables contiennent des secrets en clair
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+.terraform/
+
 # Outils
 .codegraph/

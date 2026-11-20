@@ -32,7 +32,7 @@ La session principale (Opus) orchestre. Elle confie le travail aux subagents, ch
 - **Toute opération Git qui écrit** (commit, push, merge, tag) et **toute écriture sur GitHub** (PR, issues, releases) passent par `git-ops`. Le hook `git-guard` refuse ces commandes ailleurs.
 - **Messages de commit** : en anglais, Conventional Commits, numéro d'issue en fin de titre. Exemple : `feat(api): add PDF export for invoices (#42)`.
 - **Ajouter les fichiers un par un**, après vérification : `git add -A`, `git add .` et `git commit -a` sont refusés.
-- **Jamais `--no-verify`** : le hook `pre-commit` (gitleaks) protège contre les fuites de secrets.
+- **Jamais `--no-verify`** : le hook `pre-commit` (noms de fichiers secrets, chiffrement des `*.sops.yaml`, gitleaks) protège contre les fuites de secrets.
 
 ## Revue
 

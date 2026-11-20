@@ -104,6 +104,15 @@ else { Add-Result 'hook pre-commit' 'WARN' "pas de dépôt Git" }
 
 if (-not (Get-Command gitleaks -ErrorAction SilentlyContinue)) { Add-Result 'gitleaks' 'FAIL' 'absent : tout commit sera refusé' }
 
+# Outils du lint d'infra : un outil absent fait échouer stop-checks à chaque fin de tour qui
+# touche ses fichiers.
+$infraLint = Join-Path $root '.harness' 'modules' 'infra' 'lint.ps1'
+if (Test-Path $infraLint) {
+    $absent = @(& $infraLint -Missing)
+    if ($absent) { Add-Result 'lint infra' 'WARN' "absents : $(($absent | ForEach-Object { "$($_.Name) ($($_.Hint))" }) -join ' ; ')" }
+    else { Add-Result 'lint infra' 'OK' 'tofu, tflint, kubeconform, yamllint, ansible-lint (WSL)' }
+}
+
 # --- .gitignore -------------------------------------------------------------------
 $gitignore = Join-Path $root '.gitignore'
 $hasBlock = (Test-Path $gitignore) -and ((Get-Content $gitignore -Raw) -match '# >>> harness')

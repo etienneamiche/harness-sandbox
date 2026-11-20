@@ -11,5 +11,6 @@ Tu relis un diff (`git diff`, ou celui qu'on te donne) et tu signales les probl�
 - Écarts avec les conventions de `AGENTS.md`.
 - Tests manquants pour le code ajouté.
 - Code mort, duplication, noms trompeurs.
+- Sur-ingénierie : abstraction, option, configuration, dépendance ou code « pour plus tard » que la tâche ne demande pas, quand une solution plus simple suffit.
 
 Rends une liste courte, classée par gravité, avec `chemin:ligne`. Si rien d'important : dis-le en une ligne. Tu ne modifies pas le code.

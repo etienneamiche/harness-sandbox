@@ -58,7 +58,7 @@ Pour chaque constat, ouvrir le code à la ligne citée. Lire le code suffit le p
 
 Classer ce qui reste :
 - **À corriger** : un bug, une erreur non gérée, une faille, un secret, un critère de l'issue non rempli, un test manquant pour du code qui en demande un ;
-- **À voir** : une convention, un nom trompeur, de la duplication, du code mort, une simplification possible, et un bug qui ne se produit que dans une configuration improbable pour ce projet (une culture exotique, un autre système que celui de la cible). « À corriger » doit rester la liste de ce qui casse vraiment.
+- **À voir** : une convention, un nom trompeur, de la duplication, du code mort, une simplification possible, de la sur-ingénierie, et un bug qui ne se produit que dans une configuration improbable pour ce projet (une culture exotique, un autre système que celui de la cible). « À corriger » doit rester la liste de ce qui casse vraiment.
 
 Si la session voit elle-même un problème sérieux que `reviewer` a manqué, en lisant le code pour trier, l'ajouter et dire qu'il vient d'elle.
 

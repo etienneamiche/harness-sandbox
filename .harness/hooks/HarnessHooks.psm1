@@ -64,7 +64,8 @@ function Get-HarnessRules([string] $EventName, [hashtable] $Context) {
     # Règles rangées par événement : on ne charge que celles de l'événement courant.
     # Cœur : .harness/hooks/rules/<Événement>/*.ps1 ; modules : .harness/modules/<nom>/rules/<Événement>/*.ps1
     $files = @(Get-ChildItem (Join-Path $PSScriptRoot 'rules' $EventName) -Filter *.ps1 -ErrorAction SilentlyContinue)
-    $files += @(Get-ChildItem (Join-Path $script:ProjectDir '.harness' 'modules' '*' 'rules' $EventName) -Filter *.ps1 -ErrorAction SilentlyContinue)
+    # Le joker va dans le chemin : avec un `*` au milieu et -Filter, Get-ChildItem rendrait le dossier, pas ses fichiers.
+    $files += @(Get-ChildItem (Join-Path $script:ProjectDir '.harness' 'modules' '*' 'rules' $EventName '*.ps1') -File -ErrorAction SilentlyContinue)
     $disabled = @(($env:HARNESS_DISABLED_HOOKS ?? '') -split ',' | ForEach-Object Trim | Where-Object { $_ })
 
     foreach ($file in $files | Sort-Object Name) {

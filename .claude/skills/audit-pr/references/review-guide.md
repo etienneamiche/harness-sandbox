@@ -14,6 +14,7 @@ Ta revue conditionne la fusion : `merge-pr.ps1` ne fusionne que le commit sur le
    - **Migrations** : compatibles avec la version précédente (on ajoute avant de retirer ; jamais de suppression ou de renommage de colonne dans la même release que le code qui cesse de l'utiliser).
    - **Conventions et architecture** : `AGENTS.md`, modules, `ARCHITECTURE.md`.
    - **Tests** : présents, pertinents (ils échoueraient sans le changement), verts.
+   - **Simplicité** : rien de plus que ce que la tâche demande (abstraction, option, configuration, code « pour plus tard »), le code existant et la bibliothèque standard réutilisés avant d'écrire du neuf. Un constat **mineur**, ou **important** pour une dépendance ajoutée sans besoin, ou une couche que les conventions n'appellent pas.
    - **Issue liée** : chaque critère d'acceptation est rempli, ou le constat dit lequel ne l'est pas. Une PR sans issue liée est un constat **important** (une PR = une issue).
    - **Taille** : au-delà de 1 500 lignes modifiées, hors fichiers générés (manifeste, lockfiles, contenu apporté par `copier update`), un constat **mineur** propose un découpage.
 
